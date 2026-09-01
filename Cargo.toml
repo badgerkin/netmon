@@ -1,0 +1,12 @@
+[package]
+name = "netmon"
+version = "0.1.0"
+edition = "2021"
+description = "htop-like live network usage monitor (TUI)"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+
+[profile.release]
+strip = true
