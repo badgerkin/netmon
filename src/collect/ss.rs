@@ -22,7 +22,8 @@ impl Connection {
 }
 
 pub fn sample() -> Vec<Connection> {
-    let out = match Command::new("ss").args(["-Htunap"]).output() {
+    // `-H` (no header) is newer; without it, `parse` skips the header line.
+    let out = match Command::new("ss").args(["-tunap"]).output() {
         Ok(o) if o.status.success() => o.stdout,
         _ => return Vec::new(),
     };
@@ -51,6 +52,9 @@ fn parse(data: &[u8]) -> Vec<Connection> {
         } else {
             line.split_whitespace().collect()
         };
+        if fields[0].trim() == "Netid" {
+            continue; // header row (when `-H` is unavailable)
+        }
         // [netid, state, recv-q, send-q, local, peer, users?]
         if fields.len() < 6 {
             continue;

@@ -26,6 +26,8 @@ pub struct NetState {
     pub totals_tx: u64,
     /// Number of full samples since start (drives averages).
     pub samples: u64,
+    /// Accumulated sampled time in seconds; averages = totals / elapsed.
+    pub elapsed_secs: f64,
     /// Last sampling interval in seconds (for averages).
     pub(crate) dt: f64,
     pub conns: Vec<Connection>,
@@ -47,6 +49,7 @@ impl NetState {
             totals_rx: 0,
             totals_tx: 0,
             samples: 0,
+            elapsed_secs: 0.0,
             dt: 1.0,
             conns: Vec::new(),
             started: Instant::now(),
@@ -83,6 +86,7 @@ impl NetState {
             self.min_rx = self.min_rx.min(self.rate_rx);
             self.min_tx = self.min_tx.min(self.rate_tx);
             self.samples += 1;
+            self.elapsed_secs += dt;
         }
 
         self.history.push_back(Sample {
@@ -98,7 +102,7 @@ impl NetState {
         if self.samples == 0 {
             0.0
         } else {
-            self.totals_rx as f64 / (self.samples as f64 * self.dt)
+            self.totals_rx as f64 / self.elapsed_secs.max(0.01)
         }
     }
 
@@ -106,7 +110,7 @@ impl NetState {
         if self.samples == 0 {
             0.0
         } else {
-            self.totals_tx as f64 / (self.samples as f64 * self.dt)
+            self.totals_tx as f64 / self.elapsed_secs.max(0.01)
         }
     }
 

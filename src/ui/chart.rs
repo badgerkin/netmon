@@ -11,7 +11,8 @@ use crate::fmt;
 use crate::model::NetState;
 
 pub fn draw(frame: &mut Frame, area: ratatui::layout::Rect, state: &NetState) {
-    let hi = state.peak().max(1.0) * 1.1;
+    // Floor the scale so an idle chart shows B/s, not a 1-byte axis.
+    let hi = state.peak().max(1024.0) * 1.1;
 
     // Chart data points are (x, y) pairs; x is the sample index.
     let in_data: Vec<(f64, f64)> = state

@@ -90,13 +90,14 @@ pub fn draw(frame: &mut Frame, area: ratatui::layout::Rect, state: &NetState, ui
     }
 
     let procs = ui.show_procs;
+    // The header already shows "sort: X"; keep the column header short.
     let header_cells: Vec<Cell> = if procs {
         vec![
             Cell::from("PROTO"),
             Cell::from("STATE"),
             Cell::from("LOCAL"),
             Cell::from("PEER"),
-            Cell::from(format!("BYTES ({} sort)", ui.sort.label())),
+            Cell::from("BYTES"),
             Cell::from("PID"),
             Cell::from("PROG"),
         ]
@@ -106,7 +107,7 @@ pub fn draw(frame: &mut Frame, area: ratatui::layout::Rect, state: &NetState, ui
             Cell::from("STATE"),
             Cell::from("LOCAL"),
             Cell::from("PEER"),
-            Cell::from(format!("BYTES ({} sort)", ui.sort.label())),
+            Cell::from("BYTES"),
         ]
     };
     let header = Row::new(header_cells).style(Style::default().fg(Color::Black).bg(Color::Blue));
@@ -129,16 +130,17 @@ pub fn draw(frame: &mut Frame, area: ratatui::layout::Rect, state: &NetState, ui
     let widths = if procs {
         vec![
             Constraint::Length(5),
-            Constraint::Length(10),
+            Constraint::Length(9),
             Constraint::Percentage(25),
             Constraint::Percentage(25),
             Constraint::Length(9),
             Constraint::Length(7),
+            Constraint::Length(8),
         ]
     } else {
         vec![
             Constraint::Length(5),
-            Constraint::Length(10),
+            Constraint::Length(9),
             Constraint::Percentage(30),
             Constraint::Percentage(30),
             Constraint::Length(9),

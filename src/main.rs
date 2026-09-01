@@ -5,9 +5,10 @@ mod fmt;
 mod model;
 mod ui;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{self};
 use ratatui::{
     backend::CrosstermBackend,
@@ -15,13 +16,49 @@ use ratatui::{
     DefaultTerminal,
 };
 
-fn main() -> std::io::Result<()> {
+/// Set on SIGINT; the main loop checks it and exits cleanly. In raw mode
+/// Ctrl-C arrives as a literal byte (handled in `handle_key`); this covers
+/// `kill -INT` and other sources.
+static SIGINT: AtomicBool = AtomicBool::new(false);
+
+/// Put the terminal back where we found it. Runs on the normal exit path
+/// and in the panic/SIGINT handlers, so it must be idempotent and never
+/// allocate in a way that panics.
+fn restore_terminal() {
+    let _ = terminal::disable_raw_mode();
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::DisableMouseCapture,
+        crossterm::terminal::LeaveAlternateScreen,
+        crossterm::cursor::Show,
+    );
+}
+
+extern "C" fn on_sigint(_sig: libc::c_int) {
+    SIGINT.store(true, Ordering::Relaxed);
+}
+
+fn setup() -> std::io::Result<()> {
+    // Raw mode swallows Ctrl-C into the input stream, so SIGINT mostly comes
+    // from `kill`; keep the terminal clean either way.
+    let _ = unsafe { libc::signal(libc::SIGINT, on_sigint as *const () as usize) };
+    std::panic::set_hook(Box::new(|_info: &std::panic::PanicHookInfo| {
+        restore_terminal();
+        eprintln!("netmon: panicked (see `RUST_BACKTRACE=1` for details)");
+        std::process::exit(101);
+    }));
+
     terminal::enable_raw_mode()?;
     crossterm::execute!(
         std::io::stdout(),
         crossterm::event::EnableMouseCapture,
         crossterm::terminal::EnterAlternateScreen,
     )?;
+    Ok(())
+}
+
+fn main() -> std::io::Result<()> {
+    setup()?;
     let mut term = DefaultTerminal::new(CrosstermBackend::new(std::io::stdout()))?;
     term.hide_cursor()?;
 
@@ -29,8 +66,14 @@ fn main() -> std::io::Result<()> {
     let mut uistate = ui::UiState::default();
     let mut running = true;
     let mut next_sample = Instant::now() + Duration::from_millis(100);
+    // Re-spawning `ss` every tick is wasteful at 100ms delay; keep the
+    // connection list at most ~1s old (or resample until we have one).
+    let mut last_ss = Instant::now();
 
     while running {
+        if SIGINT.load(Ordering::Relaxed) {
+            break;
+        }
         let now = Instant::now();
         if now >= next_sample {
             // Tick is due: drain any pending input (non-blocking), then sample.
@@ -47,6 +90,10 @@ fn main() -> std::io::Result<()> {
                 }
             }
             sample(&mut state);
+            if state.conns.is_empty() || now.duration_since(last_ss) >= Duration::from_millis(500) {
+                state.conns = collect::ss::sample();
+                last_ss = now;
+            }
             next_sample = now + Duration::from_millis(uistate.delay_ms);
         } else {
             match event::poll(next_sample - now) {
@@ -85,13 +132,7 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    term.show_cursor()?;
-    crossterm::execute!(
-        std::io::stdout(),
-        crossterm::event::DisableMouseCapture,
-        crossterm::terminal::LeaveAlternateScreen,
-    )?;
-    terminal::disable_raw_mode()?;
+    restore_terminal();
     Ok(())
 }
 
@@ -104,6 +145,10 @@ fn handle_key(
         return;
     }
     match k.code {
+        // Raw mode: the terminal doesn't raise SIGINT for Ctrl-C, it sends
+        // the byte instead. crossterm reports it as Ctrl+c (not the raw
+        // byte), so match on the character + modifier.
+        KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL) => *running = false,
         KeyCode::Char('q') => *running = false,
         KeyCode::Char('s') => uistate.sort = uistate.sort.cycle(),
         KeyCode::Char('f') => uistate.filter = uistate.filter.cycle(),
@@ -129,5 +174,4 @@ fn sample(state: &mut model::NetState) {
         .max(0.01);
     state.last_tick = Some(now);
     state.tick(collect::ifaces::sample(), dt);
-    state.conns = collect::ss::sample();
 }
