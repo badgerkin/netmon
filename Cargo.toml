@@ -14,3 +14,14 @@ libc = "0.2"
 
 [profile.release]
 strip = true
+
+[package.metadata.deb]
+maintainer = "badgerkin <50284661+badgerkin@users.noreply.github.com>"
+depends = "iproute2"
+section = "net"
+priority = "optional"
+extended-description = "htop-like live network usage monitor for the terminal: per-interface throughput chart, totals, and a live connection table (via ss)."
+assets = [
+    ["target/release/netmon", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/netmon/README", "644"],
+]
