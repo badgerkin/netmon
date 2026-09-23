@@ -8,7 +8,7 @@ mod ui;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind};
 use crossterm::terminal::{self};
 use ratatui::{
     backend::CrosstermBackend,
@@ -83,6 +83,7 @@ fn main() -> std::io::Result<()> {
                         Ok(Event::Key(k)) => {
                             handle_key(k, &mut uistate, &mut running);
                         }
+                        Ok(Event::Mouse(m)) => handle_mouse(m, &mut uistate),
                         Ok(_) => {}
                         Err(_) => break,
                     },
@@ -91,7 +92,7 @@ fn main() -> std::io::Result<()> {
             }
             sample(&mut state);
             if state.conns.is_empty() || now.duration_since(last_ss) >= Duration::from_millis(500) {
-                state.conns = collect::ss::sample();
+                state.update_conns(collect::ss::sample(), now);
                 last_ss = now;
             }
             next_sample = now + Duration::from_millis(uistate.delay_ms);
@@ -101,6 +102,7 @@ fn main() -> std::io::Result<()> {
                     Ok(Event::Key(k)) => {
                         handle_key(k, &mut uistate, &mut running);
                     }
+                    Ok(Event::Mouse(m)) => handle_mouse(m, &mut uistate),
                     Ok(_) => {}
                     Err(_) => {}
                 },
@@ -125,7 +127,7 @@ fn main() -> std::io::Result<()> {
             }
         } else {
             let state_ref = &state;
-            let uistate_ref = &uistate;
+            let uistate_ref = &mut uistate;
             if term.draw(|f| ui::draw(f, state_ref, uistate_ref)).is_err() {
                 break;
             }
@@ -150,9 +152,24 @@ fn handle_key(
         // byte), so match on the character + modifier.
         KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL) => *running = false,
         KeyCode::Char('q') => *running = false,
-        KeyCode::Char('s') => uistate.sort = uistate.sort.cycle(),
+        KeyCode::Char('s') => {
+            uistate.sort = uistate.sort.cycle(1, uistate.show_procs);
+            uistate.sort_desc = uistate.sort.default_desc();
+        }
+        KeyCode::Char('S') => {
+            uistate.sort = uistate.sort.cycle(-1, uistate.show_procs);
+            uistate.sort_desc = uistate.sort.default_desc();
+        }
+        KeyCode::Char('r') => uistate.sort_desc = !uistate.sort_desc,
         KeyCode::Char('f') => uistate.filter = uistate.filter.cycle(),
-        KeyCode::Char('p') => uistate.show_procs = !uistate.show_procs,
+        KeyCode::Char('p') => {
+            uistate.show_procs = !uistate.show_procs;
+            // Don't keep sorting by a column that just disappeared.
+            if !uistate.show_procs && uistate.sort.is_proc() {
+                uistate.sort = ui::conns::SortKey::Rx;
+                uistate.sort_desc = uistate.sort.default_desc();
+            }
+        }
         KeyCode::Char('d') => {
             uistate.delay_ms = match uistate.delay_ms {
                 100 => 500,
@@ -160,8 +177,25 @@ fn handle_key(
                 _ => 100,
             };
         }
+        KeyCode::Down | KeyCode::Char('j') => uistate.table.select_next(),
+        KeyCode::Up | KeyCode::Char('k') => uistate.table.select_previous(),
+        KeyCode::PageDown => uistate.table.scroll_down_by(uistate.page),
+        KeyCode::PageUp => uistate.table.scroll_up_by(uistate.page),
+        KeyCode::Home | KeyCode::Char('g') => uistate.table.select_first(),
+        KeyCode::End | KeyCode::Char('G') => uistate.table.select_last(),
         KeyCode::Char('h') => uistate.help = !uistate.help,
-        KeyCode::Esc => uistate.help = false,
+        // Esc closes help first; otherwise it clears the connection
+        // selection so the stats lines cover all connections.
+        KeyCode::Esc if uistate.help => uistate.help = false,
+        KeyCode::Esc => uistate.table.select(None),
+        _ => {}
+    }
+}
+
+fn handle_mouse(m: crossterm::event::MouseEvent, uistate: &mut ui::UiState) {
+    match m.kind {
+        MouseEventKind::ScrollDown => uistate.table.scroll_down_by(3),
+        MouseEventKind::ScrollUp => uistate.table.scroll_up_by(3),
         _ => {}
     }
 }

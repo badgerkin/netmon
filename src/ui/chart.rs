@@ -15,13 +15,12 @@ use ratatui::{
 };
 
 use crate::fmt;
-use crate::model::{NetState, HISTORY};
+use crate::model::{NetState, Rates, HISTORY};
+use crate::ui::{rate_spans, RX, TX};
 
 // Grafana's classic palette, plus ~25% "opacity" fills against a dark bg.
-const IN: Color = Color::Rgb(115, 191, 105);
-const OUT: Color = Color::Rgb(87, 148, 242);
-const IN_FILL: Color = Color::Rgb(29, 48, 26);
-const OUT_FILL: Color = Color::Rgb(22, 37, 61);
+const RX_FILL: Color = Color::Rgb(29, 48, 26);
+const TX_FILL: Color = Color::Rgb(22, 37, 61);
 const BOTH_FILL: Color = Color::Rgb(34, 56, 58);
 const GRID: Color = Color::Rgb(50, 50, 50);
 const AXIS: Color = Color::Rgb(140, 140, 140);
@@ -34,8 +33,8 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &NetState) {
         .title(Line::from(" Throughput ").bold().fg(Color::White));
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    // Need room for at least a 2-row plot + x labels + legend.
-    if inner.height < 4 || inner.width < 30 {
+    // Need room for at least a 2-row plot + x labels + 2-row legend.
+    if inner.height < 5 || inner.width < 30 {
         return;
     }
 
@@ -45,7 +44,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &NetState) {
     let span = (HISTORY - 1) as f64 * dt;
 
     // Y scale: autoscale to what's visible (like Grafana), on nice binary steps.
-    let plot_h = inner.height - 2;
+    let plot_h = inner.height - 3;
     let vis_max = rx.iter().chain(&tx).fold(0.0f64, |a, &b| a.max(b));
     let divisions = (plot_h / 3).clamp(2, 5) as f64;
     let step = nice_step(vis_max.max(1024.0) * 1.05 / divisions);
@@ -101,8 +100,8 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &NetState) {
             };
             let bg = match (under(&in_sub), under(&out_sub)) {
                 (true, true) => BOTH_FILL,
-                (true, false) => IN_FILL,
-                (false, true) => OUT_FILL,
+                (true, false) => RX_FILL,
+                (false, true) => TX_FILL,
                 (false, false) => Color::Reset,
             };
             let (ib, ob) = (in_dots[r * w + c], out_dots[r * w + c]);
@@ -112,7 +111,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &NetState) {
             cell.reset();
             cell.set_bg(bg);
             if ib | ob != 0 {
-                let fg = if ib.count_ones() >= ob.count_ones() { IN } else { OUT };
+                let fg = if ib.count_ones() >= ob.count_ones() { RX } else { TX };
                 cell.set_char(char::from_u32(0x2800 + (ib | ob) as u32).unwrap_or(' '));
                 cell.set_fg(fg);
             } else {
@@ -139,30 +138,20 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &NetState) {
         }
     }
 
-    draw_legend(buf, Rect { y: label_y + 1, height: 1, ..plot }, &rx, &tx, state);
+    draw_legend(buf, Rect { y: label_y + 1, height: 2, ..plot }, &rx, &tx);
 }
 
-fn draw_legend(buf: &mut Buffer, area: Rect, rx: &[f64], tx: &[f64], state: &NetState) {
-    let gray = Style::default().fg(AXIS);
-    let white = Style::default().fg(Color::White);
-    let entry = |name: &'static str, color: Color, series: &[f64], last: f64| {
-        let max = series.iter().fold(0.0f64, |a, &b| a.max(b));
-        let mean = series.iter().sum::<f64>() / series.len().max(1) as f64;
-        vec![
+/// One row per direction: "━━ RX  max X  min X  avg X  cur X" over the
+/// samples currently on the chart.
+fn draw_legend(buf: &mut Buffer, area: Rect, rx: &[f64], tx: &[f64]) {
+    for (row, (name, color, series)) in [("RX", RX, rx), ("TX", TX, tx)].into_iter().enumerate() {
+        let mut spans = vec![
             Span::styled("━━ ", Style::default().fg(color)),
-            Span::styled(format!("{name:<5}"), white),
-            Span::styled("last ", gray),
-            Span::styled(format!("{:<11}", fmt::rate(last)), white),
-            Span::styled("mean ", gray),
-            Span::styled(format!("{:<11}", fmt::rate(mean)), white),
-            Span::styled("max ", gray),
-            Span::styled(format!("{:<11}", fmt::rate(max)), white),
-        ]
-    };
-    let mut spans = entry("in", IN, rx, state.rate_rx);
-    spans.push(Span::raw("  "));
-    spans.extend(entry("out", OUT, tx, state.rate_tx));
-    buf.set_line(area.x, area.y, &Line::from(spans), area.width);
+            Span::styled(format!("{name}  "), Style::default().fg(color).bold()),
+        ];
+        spans.extend(rate_spans(Rates::of(series).as_ref(), color));
+        buf.set_line(area.x, area.y + row as u16, &Line::from(spans), area.width);
+    }
 }
 
 /// Series value at fractional sample index `back` samples before the newest,

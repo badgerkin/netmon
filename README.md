@@ -33,12 +33,15 @@ sudo apt install ./netmon_0.1.0-1_amd64.deb
 | Key | Action |
 | --- | --- |
 | `q` | quit |
-| `s` | cycle sort: bytes / state / peer / proto |
+| `s` / `S` | sort by next / previous column (any column; starts on RX) |
+| `r` | reverse sort direction |
+| `j`/`k`, arrows, `PgUp`/`PgDn`, `Home`/`End` | scroll connections |
 | `f` | cycle filter: all / tcp / udp |
 | `p` | toggle process (pid/prog) column |
 | `d` | cycle refresh delay: 100 / 500 / 1000 ms |
 | `h` | open help |
 | `h` / `Esc` | close help |
+| `Esc` | clear connection selection (stats lines cover all connections) |
 
 ## Building
 

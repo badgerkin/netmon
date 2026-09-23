@@ -2,7 +2,15 @@
 
 pub type Counters = Vec<(String, u64, u64)>; // (name, rx_bytes, tx_bytes)
 
-/// Read /proc/net/dev and return cumulative (name, rx, tx) for each interface.
+/// Virtual interfaces (loopback, docker0/br-*, veth*, virbr*, tun/wg, ...)
+/// carry on-machine traffic, or re-carry traffic that also crosses a physical
+/// NIC; the kernel lists all of them under /sys/devices/virtual/net.
+fn is_virtual(iface: &str) -> bool {
+    iface == "lo" || std::path::Path::new("/sys/devices/virtual/net").join(iface).exists()
+}
+
+/// Read /proc/net/dev and return cumulative (name, rx, tx) for each physical
+/// interface, so totals reflect traffic to/from other machines only.
 pub fn sample() -> Counters {
     let s = match std::fs::read_to_string("/proc/net/dev") {
         Ok(s) => s,
@@ -17,7 +25,7 @@ pub fn sample() -> Counters {
             continue;
         };
         let iface = iface.trim();
-        if iface.is_empty() {
+        if iface.is_empty() || is_virtual(iface) {
             continue;
         }
         let nums: Vec<&str> = rest.split_whitespace().collect();

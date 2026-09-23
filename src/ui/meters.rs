@@ -9,6 +9,7 @@ use ratatui::{
 
 use crate::fmt;
 use crate::model::NetState;
+use crate::ui::{RX, STAT_LABEL, TX};
 
 /// Fixed width for the rate values, so they end at a stable column (right-
 /// aligned) and both bars start at the same column. "999.9 TB/s" is the
@@ -16,17 +17,17 @@ use crate::model::NetState;
 const RATE_W: usize = 12;
 
 pub fn draw(frame: &mut Frame, area: ratatui::layout::Rect, state: &NetState) {
-    // Arrow+label (7) + right-aligned rate (RATE_W) + separator (2),
-    // then the bar, separator (2) + right-aligned peak (RATE_W).
+    // Arrow+label (7) + "cur " (4) + right-aligned rate (RATE_W) + separator
+    // (2), then the bar, separator (2) + "max " (4) + right-aligned peak.
     let bar_w = (area
         .width
-        .saturating_sub((7 + RATE_W + 2 + 2 + RATE_W) as u16))
+        .saturating_sub((7 + 4 + RATE_W + 2 + 2 + 4 + RATE_W) as u16))
         .max(10);
-    let in_line = meter_line(state, "in", Color::Green, bar_w, state.rate_rx, state.peak_rx);
+    let in_line = meter_line(state, "RX", RX, bar_w, state.rate_rx, state.peak_rx);
     let out_line = meter_line(
         state,
-        "out",
-        Color::Cyan,
+        "TX",
+        TX,
         bar_w,
         state.rate_tx,
         state.peak_tx,
@@ -51,10 +52,11 @@ fn meter_line(
     let bar = "█".repeat(filled as usize) + &"░".repeat((bar_w - filled) as usize);
     Line::from(vec![
         Span::styled(
-            format!(" {} ", if label == "in" { "▼" } else { "▲" }),
+            format!(" {} ", if label == "RX" { "▼" } else { "▲" }),
             Style::default().fg(color),
         ),
         Span::raw(format!(" {:<3}", label)),
+        Span::styled("cur ", Style::default().fg(STAT_LABEL)),
         Span::styled(
             format!("{:>RATE_W$}", fmt::rate(rate)),
             Style::default().fg(color).bold(),
@@ -62,6 +64,7 @@ fn meter_line(
         Span::raw("  "),
         Span::styled(bar, Style::default().fg(color)),
         Span::raw("  "),
+        Span::styled("max ", Style::default().fg(STAT_LABEL)),
         Span::styled(
             format!("{:>RATE_W$}", fmt::rate(peak)),
             Style::default().fg(Color::DarkGray),
