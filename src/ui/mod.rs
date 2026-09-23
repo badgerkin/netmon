@@ -46,15 +46,18 @@ pub fn draw(frame: &mut Frame, state: &NetState, ui: &UiState) {
         return;
     }
 
+    // Give the graph roughly half the screen (clamped) so it's actually readable.
+    let chart_h = (size.height / 2).clamp(8, 18);
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // header
-            Constraint::Length(2),  // meters
-            Constraint::Length(3),  // chart
-            Constraint::Length(1),  // totals
-            Constraint::Min(0),     // connections
-            Constraint::Length(1),  // footer
+            Constraint::Length(1),    // header
+            Constraint::Length(2),    // meters
+            Constraint::Length(chart_h), // chart
+            Constraint::Length(1),    // totals
+            Constraint::Min(0),       // connections
+            Constraint::Length(1),    // footer
         ])
         .split(size);
 

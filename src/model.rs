@@ -113,8 +113,4 @@ impl NetState {
             self.totals_tx as f64 / self.elapsed_secs.max(0.01)
         }
     }
-
-    pub fn peak(&self) -> f64 {
-        self.peak_rx.max(self.peak_tx)
-    }
 }

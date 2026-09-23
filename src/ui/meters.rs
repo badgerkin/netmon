@@ -10,14 +10,18 @@ use ratatui::{
 use crate::fmt;
 use crate::model::NetState;
 
-/// Fixed width for the rate labels so the bars start at the same column
-/// on the in/out rows. "999.9 GB/s" / "999.9 TB/s" is the widest rate we
-/// can print.
-const RATE_W: usize = 10;
+/// Fixed width for the rate values, so they end at a stable column (right-
+/// aligned) and both bars start at the same column. "999.9 TB/s" is the
+/// widest rate we can print.
+const RATE_W: usize = 12;
 
 pub fn draw(frame: &mut Frame, area: ratatui::layout::Rect, state: &NetState) {
-    // Prefix: " ▼ in "(6) + rate (10) + "  "(2) = 18; suffix: "  "(2) + peak (10).
-    let bar_w = (area.width.saturating_sub(18 + 2 + RATE_W as u16)).max(10);
+    // Arrow+label (7) + right-aligned rate (RATE_W) + separator (2),
+    // then the bar, separator (2) + right-aligned peak (RATE_W).
+    let bar_w = (area
+        .width
+        .saturating_sub((7 + RATE_W + 2 + 2 + RATE_W) as u16))
+        .max(10);
     let in_line = meter_line(state, "in", Color::Green, bar_w, state.rate_rx, state.peak_rx);
     let out_line = meter_line(
         state,
@@ -50,16 +54,16 @@ fn meter_line(
             format!(" {} ", if label == "in" { "▼" } else { "▲" }),
             Style::default().fg(color),
         ),
-        Span::raw(format!(" {} ", label)),
+        Span::raw(format!(" {:<3}", label)),
         Span::styled(
-            format!("{:RATE_W$}", fmt::rate(rate)),
+            format!("{:>RATE_W$}", fmt::rate(rate)),
             Style::default().fg(color).bold(),
         ),
         Span::raw("  "),
         Span::styled(bar, Style::default().fg(color)),
         Span::raw("  "),
         Span::styled(
-            format!("{:RATE_W$}", fmt::rate(peak)),
+            format!("{:>RATE_W$}", fmt::rate(peak)),
             Style::default().fg(Color::DarkGray),
         ),
     ])
