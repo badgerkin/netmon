@@ -7,9 +7,9 @@ An htop-like live network usage monitor for the terminal, with a throughput char
 Tarball:
 
 ```sh
-sha256sum -c netmon-0.1.0-x86_64-linux-musl.tar.gz.sha256
-tar xzf netmon-0.1.0-x86_64-linux-musl.tar.gz
-install -m755 netmon-0.1.0-x86_64-linux-musl/netmon ~/.local/bin/
+sha256sum -c netmon-0.2.0-x86_64-linux-musl.tar.gz.sha256
+tar xzf netmon-0.2.0-x86_64-linux-musl.tar.gz
+install -m755 netmon-0.2.0-x86_64-linux-musl/netmon ~/.local/bin/
 ```
 
 Or install to `/usr/local/bin` with `sudo`.
@@ -17,7 +17,7 @@ Or install to `/usr/local/bin` with `sudo`.
 Debian/Ubuntu:
 
 ```sh
-sudo apt install ./netmon_0.1.0-1_amd64.deb
+sudo apt install ./netmon_0.2.0-1_amd64.deb
 ```
 
 ## Requirements

@@ -1,6 +1,6 @@
 [package]
 name = "netmon"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "htop-like live network usage monitor (TUI)"
 authors = ["badgerkin <50284661+badgerkin@users.noreply.github.com>"]
